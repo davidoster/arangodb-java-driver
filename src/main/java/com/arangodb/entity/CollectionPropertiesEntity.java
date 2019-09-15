@@ -38,10 +38,15 @@ public class CollectionPropertiesEntity extends CollectionEntity {
 	private Integer numberOfShards;
 	private Collection<String> shardKeys;
 	private final ReplicationFactor replicationFactor;
+	private final MinReplicationFactor minReplicationFactor;
+
+	private String shardingStrategy; // cluster option
+	private String smartJoinAttribute; // enterprise option
 
 	public CollectionPropertiesEntity() {
 		super();
 		replicationFactor = new ReplicationFactor();
+		minReplicationFactor = new MinReplicationFactor();
 	}
 
 	public Boolean getDoCompact() {
@@ -85,8 +90,7 @@ public class CollectionPropertiesEntity extends CollectionEntity {
 	}
 
 	/**
-	 * @return contains the names of document attributes that are used to determine the target shard for documents. Only
-	 *         in a cluster setup
+	 * @return the number of shards of the collection. Only in a cluster setup (else returning null).
 	 */
 	public Integer getNumberOfShards() {
 		return numberOfShards;
@@ -97,7 +101,8 @@ public class CollectionPropertiesEntity extends CollectionEntity {
 	}
 
 	/**
-	 * @return the number of shards of the collection. Only in a cluster setup.
+	 * @return the names of document attributes that are used to determine the target shard for documents.
+	 *         Only in a cluster setup (else returning null).
 	 */
 	public Collection<String> getShardKeys() {
 		return shardKeys;
@@ -115,8 +120,16 @@ public class CollectionPropertiesEntity extends CollectionEntity {
 		this.replicationFactor.setReplicationFactor(replicationFactor);
 	}
 
+	public Integer getMinReplicationFactor() {
+		return minReplicationFactor.getMinReplicationFactor();
+	}
+
+	public void setMinReplicationFactor(final Integer minReplicationFactor) {
+		this.minReplicationFactor.setMinReplicationFactor(minReplicationFactor);
+	}
+
 	/**
-	 * @return whether the collection is a satellite collection. Only in a enterprise cluster setup.
+	 * @return whether the collection is a satellite collection. Only in an enterprise cluster setup (else returning null).
 	 */
 	public Boolean getSatellite() {
 		return this.replicationFactor.getSatellite();
@@ -124,6 +137,22 @@ public class CollectionPropertiesEntity extends CollectionEntity {
 
 	public void setSatellite(final Boolean satellite) {
 		this.replicationFactor.setSatellite(satellite);
+	}
+
+	public String getShardingStrategy() {
+		return shardingStrategy;
+	}
+
+	public void setShardingStrategy(String shardingStrategy) {
+		this.shardingStrategy = shardingStrategy;
+	}
+
+	public String getSmartJoinAttribute() {
+		return smartJoinAttribute;
+	}
+
+	public void setSmartJoinAttribute(String smartJoinAttribute) {
+		this.smartJoinAttribute = smartJoinAttribute;
 	}
 
 }

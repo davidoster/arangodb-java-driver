@@ -20,35 +20,22 @@
 
 package com.arangodb.internal.velocypack;
 
-import java.lang.reflect.Field;
-import java.util.Date;
-
-import com.arangodb.entity.ArangoDBVersion;
-import com.arangodb.entity.BaseDocument;
-import com.arangodb.entity.BaseEdgeDocument;
-import com.arangodb.entity.CollectionStatus;
-import com.arangodb.entity.CollectionType;
-import com.arangodb.entity.DocumentField;
-import com.arangodb.entity.LogLevel;
-import com.arangodb.entity.Permissions;
-import com.arangodb.entity.QueryEntity;
-import com.arangodb.entity.QueryExecutionState;
-import com.arangodb.entity.ReplicationFactor;
-import com.arangodb.entity.ViewType;
+import com.arangodb.entity.*;
 import com.arangodb.entity.arangosearch.ArangoSearchProperties;
 import com.arangodb.entity.arangosearch.ArangoSearchPropertiesEntity;
-import com.arangodb.entity.arangosearch.ConsolidationType;
 import com.arangodb.entity.arangosearch.ConsolidationPolicy;
+import com.arangodb.entity.arangosearch.ConsolidationType;
 import com.arangodb.internal.velocystream.internal.AuthenticationRequest;
 import com.arangodb.model.TraversalOptions;
 import com.arangodb.model.arangosearch.ArangoSearchPropertiesOptions;
-import com.arangodb.velocypack.VPackFieldNamingStrategy;
 import com.arangodb.velocypack.VPackModule;
 import com.arangodb.velocypack.VPackParserModule;
 import com.arangodb.velocypack.VPackParserSetupContext;
 import com.arangodb.velocypack.VPackSetupContext;
 import com.arangodb.velocystream.Request;
 import com.arangodb.velocystream.Response;
+
+import java.util.Date;
 
 /**
  * @author Mark Vollmary
@@ -58,15 +45,12 @@ public class VPackDriverModule implements VPackModule, VPackParserModule {
 
 	@Override
 	public <C extends VPackSetupContext<C>> void setup(final C context) {
-		context.fieldNamingStrategy(new VPackFieldNamingStrategy() {
-			@Override
-			public String translateName(final Field field) {
-				final DocumentField annotation = field.getAnnotation(DocumentField.class);
-				if (annotation != null) {
-					return annotation.value().getSerializeName();
-				}
-				return field.getName();
+		context.fieldNamingStrategy(field -> {
+			final DocumentField annotation = field.getAnnotation(DocumentField.class);
+			if (annotation != null) {
+				return annotation.value().getSerializeName();
 			}
+			return field.getName();
 		});
 		context.registerSerializer(Request.class, VPackSerializers.REQUEST);
 		context.registerSerializer(AuthenticationRequest.class, VPackSerializers.AUTH_REQUEST);
@@ -77,9 +61,9 @@ public class VPackDriverModule implements VPackModule, VPackParserModule {
 		context.registerSerializer(LogLevel.class, VPackSerializers.LOG_LEVEL);
 		context.registerSerializer(Permissions.class, VPackSerializers.PERMISSIONS);
 		context.registerSerializer(ReplicationFactor.class, VPackSerializers.REPLICATION_FACTOR);
+		context.registerSerializer(MinReplicationFactor.class, VPackSerializers.MIN_REPLICATION_FACTOR);
 		context.registerSerializer(ViewType.class, VPackSerializers.VIEW_TYPE);
-		context.registerSerializer(ArangoSearchPropertiesOptions.class,
-			VPackSerializers.ARANGO_SEARCH_PROPERTIES_OPTIONS);
+		context.registerSerializer(ArangoSearchPropertiesOptions.class, VPackSerializers.ARANGO_SEARCH_PROPERTIES_OPTIONS);
 		context.registerSerializer(ArangoSearchProperties.class, VPackSerializers.ARANGO_SEARCH_PROPERTIES);
 		context.registerSerializer(ConsolidationType.class, VPackSerializers.CONSOLIDATE_TYPE);
 
@@ -90,14 +74,14 @@ public class VPackDriverModule implements VPackModule, VPackParserModule {
 		context.registerDeserializer(BaseEdgeDocument.class, VPackDeserializers.BASE_EDGE_DOCUMENT);
 		context.registerDeserializer(QueryEntity.PROPERTY_STARTED, Date.class, VPackDeserializers.DATE_STRING);
 		context.registerDeserializer(LogLevel.class, VPackDeserializers.LOG_LEVEL);
-		context.registerDeserializer(ArangoDBVersion.License.class, VPackDeserializers.LICENSE);
+		context.registerDeserializer(License.class, VPackDeserializers.LICENSE);
 		context.registerDeserializer(Permissions.class, VPackDeserializers.PERMISSIONS);
 		context.registerDeserializer(QueryExecutionState.class, VPackDeserializers.QUERY_EXECUTION_STATE);
 		context.registerDeserializer(ReplicationFactor.class, VPackDeserializers.REPLICATION_FACTOR);
+		context.registerDeserializer(MinReplicationFactor.class, VPackDeserializers.MIN_REPLICATION_FACTOR);
 		context.registerDeserializer(ViewType.class, VPackDeserializers.VIEW_TYPE);
 		context.registerDeserializer(ArangoSearchProperties.class, VPackDeserializers.ARANGO_SEARCH_PROPERTIES);
-		context.registerDeserializer(ArangoSearchPropertiesEntity.class,
-			VPackDeserializers.ARANGO_SEARCH_PROPERTIES_ENTITY);
+		context.registerDeserializer(ArangoSearchPropertiesEntity.class, VPackDeserializers.ARANGO_SEARCH_PROPERTIES_ENTITY);
 		context.registerDeserializer(ConsolidationPolicy.class, VPackDeserializers.CONSOLIDATE);
 	}
 

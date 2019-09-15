@@ -22,11 +22,7 @@ package com.arangodb;
 
 import com.arangodb.entity.VertexEntity;
 import com.arangodb.entity.VertexUpdateEntity;
-import com.arangodb.model.DocumentReadOptions;
-import com.arangodb.model.VertexCreateOptions;
-import com.arangodb.model.VertexDeleteOptions;
-import com.arangodb.model.VertexReplaceOptions;
-import com.arangodb.model.VertexUpdateOptions;
+import com.arangodb.model.*;
 
 /**
  * Interface for operations on ArangoDB vertex collection level.
@@ -110,7 +106,7 @@ public interface ArangoVertexCollection extends ArangoSerializationAccessor {
 	 * @return the vertex identified by the key
 	 * @throws ArangoDBException
 	 */
-	<T> T getVertex(String key, Class<T> type, DocumentReadOptions options) throws ArangoDBException;
+	<T> T getVertex(String key, Class<T> type, GraphDocumentReadOptions options) throws ArangoDBException;
 
 	/**
 	 * Replaces the vertex with key with the one in the body, provided there is such a vertex and no precondition is
@@ -152,7 +148,7 @@ public interface ArangoVertexCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Vertices.html#modify-a-vertex">API Documentation</a>
 	 * @param key
 	 *            The key of the vertex
-	 * @param type
+	 * @param <T>
 	 *            The type of the vertex-document (POJO class, VPackSlice or String for JSON)
 	 * @return information about the vertex
 	 * @throws ArangoDBException
@@ -167,7 +163,7 @@ public interface ArangoVertexCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Vertices.html#modify-a-vertex">API Documentation</a>
 	 * @param key
 	 *            The key of the vertex
-	 * @param type
+	 * @param <T>
 	 *            The type of the vertex-document (POJO class, VPackSlice or String for JSON)
 	 * @param options
 	 *            Additional options, can be null

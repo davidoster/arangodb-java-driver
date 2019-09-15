@@ -22,6 +22,9 @@ package com.arangodb.internal.net;
 
 import java.util.List;
 
+import com.arangodb.internal.ArangoExecutorSync;
+import com.arangodb.util.ArangoSerialization;
+
 /**
  * @author Mark Vollmary
  *
@@ -29,19 +32,20 @@ import java.util.List;
 public class SimpleHostResolver implements HostResolver {
 
 	private final List<Host> hosts;
-
+	
 	public SimpleHostResolver(final List<Host> hosts) {
 		super();
 		this.hosts = hosts;
 	}
 
 	@Override
-	public void init(final EndpointResolver resolver) {
+	public void init(ArangoExecutorSync executor, ArangoSerialization arangoSerialization) {
+		
 	}
 
 	@Override
-	public List<Host> resolve(final boolean initial, final boolean closeConnections) {
-		return hosts;
+	public HostSet resolve(final boolean initial, final boolean closeConnections) {
+		return new HostSet(hosts);
 	}
 
 }

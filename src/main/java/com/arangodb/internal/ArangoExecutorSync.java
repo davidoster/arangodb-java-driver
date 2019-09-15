@@ -20,22 +20,27 @@
 
 package com.arangodb.internal;
 
-import java.io.IOException;
-import java.lang.reflect.Type;
-
 import com.arangodb.ArangoDBException;
+import com.arangodb.entity.MetaAware;
 import com.arangodb.internal.net.CommunicationProtocol;
 import com.arangodb.internal.net.HostHandle;
 import com.arangodb.internal.util.ArangoSerializationFactory;
 import com.arangodb.velocypack.exception.VPackException;
 import com.arangodb.velocystream.Request;
 import com.arangodb.velocystream.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.lang.reflect.Type;
 
 /**
  * @author Mark Vollmary
  *
  */
 public class ArangoExecutorSync extends ArangoExecutor {
+	
+	private static final Logger LOG = LoggerFactory.getLogger(ArangoExecutorSync.class);
 
 	private final CommunicationProtocol protocol;
 
@@ -50,16 +55,10 @@ public class ArangoExecutorSync extends ArangoExecutor {
 	}
 
 	public <T> T execute(final Request request, final Type type, final HostHandle hostHandle) throws ArangoDBException {
-		return execute(request, new ResponseDeserializer<T>() {
-			@Override
-			public T deserialize(final Response response) throws VPackException {
-				return createResult(type, response);
-			}
-		}, hostHandle);
+		return execute(request, response -> createResult(type, response), hostHandle);
 	}
 
-	public <T> T execute(final Request request, final ResponseDeserializer<T> responseDeserializer)
-			throws ArangoDBException {
+	public <T> T execute(final Request request, final ResponseDeserializer<T> responseDeserializer) throws ArangoDBException {
 		return execute(request, responseDeserializer, null);
 	}
 
@@ -67,9 +66,19 @@ public class ArangoExecutorSync extends ArangoExecutor {
 		final Request request,
 		final ResponseDeserializer<T> responseDeserializer,
 		final HostHandle hostHandle) throws ArangoDBException {
+		
 		try {
+			
 			final Response response = protocol.execute(request, hostHandle);
-			return responseDeserializer.deserialize(response);
+			T deserialize = responseDeserializer.deserialize(response);
+			
+			if(deserialize instanceof MetaAware) {
+				LOG.debug("Respone is MetaAware " + deserialize.getClass().getName());
+				((MetaAware) deserialize).setMeta(response.getMeta());
+			}
+			
+			return deserialize;
+			
 		} catch (final VPackException e) {
 			throw new ArangoDBException(e);
 		}

@@ -20,57 +20,26 @@
 
 package com.arangodb.internal;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-
-import com.arangodb.ArangoCollection;
-import com.arangodb.ArangoCursor;
-import com.arangodb.ArangoDBException;
-import com.arangodb.ArangoDatabase;
-import com.arangodb.ArangoGraph;
-import com.arangodb.ArangoRoute;
-import com.arangodb.ArangoSearch;
-import com.arangodb.ArangoView;
-import com.arangodb.entity.AqlExecutionExplainEntity;
-import com.arangodb.entity.AqlFunctionEntity;
-import com.arangodb.entity.AqlParseEntity;
-import com.arangodb.entity.ArangoDBVersion;
-import com.arangodb.entity.CollectionEntity;
-import com.arangodb.entity.CursorEntity;
-import com.arangodb.entity.DatabaseEntity;
-import com.arangodb.entity.EdgeDefinition;
-import com.arangodb.entity.GraphEntity;
-import com.arangodb.entity.IndexEntity;
-import com.arangodb.entity.Permissions;
-import com.arangodb.entity.QueryCachePropertiesEntity;
-import com.arangodb.entity.QueryEntity;
-import com.arangodb.entity.QueryTrackingPropertiesEntity;
-import com.arangodb.entity.TraversalEntity;
-import com.arangodb.entity.ViewEntity;
-import com.arangodb.entity.ViewType;
+import com.arangodb.*;
+import com.arangodb.entity.*;
+import com.arangodb.entity.arangosearch.AnalyzerEntity;
 import com.arangodb.internal.cursor.ArangoCursorImpl;
 import com.arangodb.internal.net.HostHandle;
 import com.arangodb.internal.util.DocumentUtil;
-import com.arangodb.model.AqlFunctionCreateOptions;
-import com.arangodb.model.AqlFunctionDeleteOptions;
-import com.arangodb.model.AqlFunctionGetOptions;
-import com.arangodb.model.AqlQueryExplainOptions;
-import com.arangodb.model.AqlQueryOptions;
-import com.arangodb.model.CollectionCreateOptions;
-import com.arangodb.model.CollectionsReadOptions;
-import com.arangodb.model.DocumentReadOptions;
-import com.arangodb.model.GraphCreateOptions;
-import com.arangodb.model.TransactionOptions;
-import com.arangodb.model.TraversalOptions;
+import com.arangodb.model.*;
+import com.arangodb.model.arangosearch.AnalyzerDeleteOptions;
 import com.arangodb.model.arangosearch.ArangoSearchCreateOptions;
 import com.arangodb.util.ArangoCursorInitializer;
 import com.arangodb.velocypack.Type;
 import com.arangodb.velocystream.Request;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * @author Mark Vollmary
- *
+ * @author Michele Rastelli
  */
 public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, ArangoExecutorSync>
 		implements ArangoDatabase {
@@ -84,6 +53,11 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	@Override
 	public ArangoDBVersion getVersion() throws ArangoDBException {
 		return executor.execute(getVersionRequest(), ArangoDBVersion.class);
+	}
+
+	@Override
+	public ArangoDBEngine getEngine() throws ArangoDBException {
+		return executor.execute(getEngineRequest(), ArangoDBEngine.class);
 	}
 
 	@Override
@@ -122,8 +96,8 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 
 	@Override
 	public Collection<CollectionEntity> getCollections() throws ArangoDBException {
-		return executor.execute(getCollectionsRequest(new CollectionsReadOptions()),
-			getCollectionsResponseDeserializer());
+		return executor
+				.execute(getCollectionsRequest(new CollectionsReadOptions()), getCollectionsResponseDeserializer());
 	}
 
 	@Override
@@ -188,19 +162,20 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 
 	@Override
 	public <T> ArangoCursor<T> query(
-		final String query,
-		final Map<String, Object> bindVars,
-		final AqlQueryOptions options,
-		final Class<T> type) throws ArangoDBException {
+			final String query, final Map<String, Object> bindVars, final AqlQueryOptions options, final Class<T> type)
+			throws ArangoDBException {
+
 		final Request request = queryRequest(query, bindVars, options);
 		final HostHandle hostHandle = new HostHandle();
 		final CursorEntity result = executor.execute(request, CursorEntity.class, hostHandle);
+
 		return createCursor(result, type, options, hostHandle);
+
 	}
 
 	@Override
-	public <T> ArangoCursor<T> query(final String query, final Map<String, Object> bindVars, final Class<T> type)
-			throws ArangoDBException {
+	public <T> ArangoCursor<T> query(
+			final String query, final Map<String, Object> bindVars, final Class<T> type) throws ArangoDBException {
 		return query(query, bindVars, null, type);
 	}
 
@@ -218,35 +193,38 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	@Override
 	public <T> ArangoCursor<T> cursor(final String cursorId, final Class<T> type) throws ArangoDBException {
 		final HostHandle hostHandle = new HostHandle();
-		final CursorEntity result = executor.execute(queryNextRequest(cursorId, null), CursorEntity.class, hostHandle);
+		final CursorEntity result = executor
+				.execute(queryNextRequest(cursorId, null, null), CursorEntity.class, hostHandle);
 		return createCursor(result, type, null, hostHandle);
 	}
 
 	private <T> ArangoCursor<T> createCursor(
-		final CursorEntity result,
-		final Class<T> type,
-		final AqlQueryOptions options,
-		final HostHandle hostHandle) {
+			final CursorEntity result,
+			final Class<T> type,
+			final AqlQueryOptions options,
+			final HostHandle hostHandle) {
+
 		final ArangoCursorExecute execute = new ArangoCursorExecute() {
 			@Override
-			public CursorEntity next(final String id) {
-				return executor.execute(queryNextRequest(id, options), CursorEntity.class, hostHandle);
+			public CursorEntity next(final String id, Map<String, String> meta) {
+				return executor.execute(queryNextRequest(id, options, meta), CursorEntity.class, hostHandle);
 			}
 
 			@Override
-			public void close(final String id) {
-				executor.execute(queryCloseRequest(id, options), Void.class, hostHandle);
+			public void close(final String id, Map<String, String> meta) {
+				executor.execute(queryCloseRequest(id, options, meta), Void.class, hostHandle);
 			}
 		};
-		return cursorInitializer != null ? cursorInitializer.createInstance(this, execute, type, result)
-				: new ArangoCursorImpl<T>(this, execute, type, result);
+
+		return cursorInitializer != null ?
+				cursorInitializer.createInstance(this, execute, type, result) :
+				new ArangoCursorImpl<>(this, execute, type, result);
 	}
 
 	@Override
 	public AqlExecutionExplainEntity explainQuery(
-		final String query,
-		final Map<String, Object> bindVars,
-		final AqlQueryExplainOptions options) throws ArangoDBException {
+			final String query, final Map<String, Object> bindVars, final AqlQueryExplainOptions options)
+			throws ArangoDBException {
 		return executor.execute(explainQueryRequest(query, bindVars, options), AqlExecutionExplainEntity.class);
 	}
 
@@ -305,8 +283,8 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	}
 
 	@Override
-	public void createAqlFunction(final String name, final String code, final AqlFunctionCreateOptions options)
-			throws ArangoDBException {
+	public void createAqlFunction(
+			final String name, final String code, final AqlFunctionCreateOptions options) throws ArangoDBException {
 		executor.execute(createAqlFunctionRequest(name, code, options), Void.class);
 	}
 
@@ -330,14 +308,13 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	public GraphEntity createGraph(final String name, final Collection<EdgeDefinition> edgeDefinitions)
 			throws ArangoDBException {
 		return executor.execute(createGraphRequest(name, edgeDefinitions, new GraphCreateOptions()),
-			createGraphResponseDeserializer());
+				createGraphResponseDeserializer());
 	}
 
 	@Override
 	public GraphEntity createGraph(
-		final String name,
-		final Collection<EdgeDefinition> edgeDefinitions,
-		final GraphCreateOptions options) throws ArangoDBException {
+			final String name, final Collection<EdgeDefinition> edgeDefinitions, final GraphCreateOptions options)
+			throws ArangoDBException {
 		return executor.execute(createGraphRequest(name, edgeDefinitions, options), createGraphResponseDeserializer());
 	}
 
@@ -353,15 +330,39 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	}
 
 	@Override
+	public StreamTransactionEntity beginStreamTransaction(StreamTransactionOptions options) throws ArangoDBException {
+		return executor.execute(beginStreamTransactionRequest(options), streamTransactionResponseDeserializer());
+	}
+
+	@Override
+	public StreamTransactionEntity abortStreamTransaction(String id) throws ArangoDBException {
+		return executor.execute(abortStreamTransactionRequest(id), streamTransactionResponseDeserializer());
+	}
+
+	@Override
+	public StreamTransactionEntity getStreamTransaction(String id) throws ArangoDBException {
+		return executor.execute(getStreamTransactionRequest(id), streamTransactionResponseDeserializer());
+	}
+
+	@Override
+	public Collection<TransactionEntity> getStreamTransactions() throws ArangoDBException {
+		return executor.execute(getStreamTransactionsRequest(), transactionsResponseDeserializer());
+	}
+
+	@Override
+	public StreamTransactionEntity commitStreamTransaction(String id) throws ArangoDBException {
+		return executor.execute(commitStreamTransactionRequest(id), streamTransactionResponseDeserializer());
+	}
+
+	@Override
 	public DatabaseEntity getInfo() throws ArangoDBException {
 		return executor.execute(getInfoRequest(), getInfoResponseDeserializer());
 	}
 
 	@Override
 	public <V, E> TraversalEntity<V, E> executeTraversal(
-		final Class<V> vertexClass,
-		final Class<E> edgeClass,
-		final TraversalOptions options) throws ArangoDBException {
+			final Class<V> vertexClass, final Class<E> edgeClass, final TraversalOptions options)
+			throws ArangoDBException {
 		final Request request = executeTraversalRequest(options);
 		return executor.execute(request, executeTraversalResponseDeserializer(vertexClass, edgeClass));
 	}
@@ -393,7 +394,7 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 
 	@Override
 	public ArangoRoute route(final String... path) {
-		return new ArangoRouteImpl(this, createPath(path), Collections.<String, String> emptyMap());
+		return new ArangoRouteImpl(this, createPath(path), Collections.emptyMap());
 	}
 
 	@Override
@@ -420,6 +421,31 @@ public class ArangoDatabaseImpl extends InternalArangoDatabase<ArangoDBImpl, Ara
 	public ViewEntity createArangoSearch(final String name, final ArangoSearchCreateOptions options)
 			throws ArangoDBException {
 		return executor.execute(createArangoSearchRequest(name, options), ViewEntity.class);
+	}
+
+	@Override
+	public AnalyzerEntity createAnalyzer(AnalyzerEntity options) throws ArangoDBException {
+		return executor.execute(createAnalyzerRequest(options), AnalyzerEntity.class);
+	}
+
+	@Override
+	public AnalyzerEntity getAnalyzer(String name) throws ArangoDBException {
+		return executor.execute(getAnalyzerRequest(name), AnalyzerEntity.class);
+	}
+
+	@Override
+	public Collection<AnalyzerEntity> getAnalyzers() throws ArangoDBException {
+		return executor.execute(getAnalyzersRequest(), getAnalyzersResponseDeserializer());
+	}
+
+	@Override
+	public void deleteAnalyzer(String name) throws ArangoDBException {
+		executor.execute(deleteAnalyzerRequest(name, null), Void.class);
+	}
+
+	@Override
+	public void deleteAnalyzer(String name, AnalyzerDeleteOptions options) throws ArangoDBException {
+		executor.execute(deleteAnalyzerRequest(name, options), Void.class);
 	}
 
 }

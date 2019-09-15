@@ -77,8 +77,16 @@ public class ArangoSerializationTest {
 	}
 
 	@Test
+	public void skipSerializeNullValues() {
+		final BaseDocument entity = new BaseDocument();
+		entity.addAttribute("bar", null);
+		final VPackSlice vpack = util.serialize(entity);
+		assertThat(vpack.get("bar").isNone(), is(true));
+	}
+
+	@Test
 	public void serializeType() {
-		final Collection<BaseDocument> list = new ArrayList<BaseDocument>();
+		final Collection<BaseDocument> list = new ArrayList<>();
 		list.add(new BaseDocument());
 		list.add(new BaseDocument());
 
@@ -91,7 +99,7 @@ public class ArangoSerializationTest {
 
 	@Test
 	public void parseJsonIncludeNull() {
-		final Map<String, Object> entity = new HashMap<String, Object>();
+		final Map<String, Object> entity = new HashMap<>();
 		entity.put("value", new String[] { "test", null });
 		final String json = util.deserialize(util.serialize(entity, new ArangoSerializer.Options()), String.class);
 		assertThat(json, is("{\"value\":[\"test\",null]}"));

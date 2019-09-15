@@ -32,12 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.hamcrest.Matcher;
 import org.junit.Test;
@@ -71,9 +66,9 @@ public class ArangoDBTest {
 	@Parameters
 	public static Collection<ArangoDB.Builder> builders() {
 		return Arrays.asList(//
-			new ArangoDB.Builder().useProtocol(Protocol.VST), //
-			new ArangoDB.Builder().useProtocol(Protocol.HTTP_JSON), //
-			new ArangoDB.Builder().useProtocol(Protocol.HTTP_VPACK) //
+				new ArangoDB.Builder().useProtocol(Protocol.VST), //
+				new ArangoDB.Builder().useProtocol(Protocol.HTTP_JSON), //
+				new ArangoDB.Builder().useProtocol(Protocol.HTTP_VPACK) //
 		);
 	}
 
@@ -96,42 +91,28 @@ public class ArangoDBTest {
 	}
 
 	@Test
-	public void createDatabase() {
-		try {
-			final Boolean result = arangoDB.createDatabase(BaseTest.TEST_DB);
-			assertThat(result, is(true));
-		} finally {
-			try {
-				arangoDB.db(BaseTest.TEST_DB).drop();
-			} catch (final ArangoDBException e) {
-			}
-		}
-	}
-
-	@Test
-	public void deleteDatabase() {
-		final Boolean resultCreate = arangoDB.createDatabase(BaseTest.TEST_DB);
+	public void createAndDeleteDatabase() {
+		final String dbName = "testDB-" + UUID.randomUUID().toString();
+		final Boolean resultCreate = arangoDB.createDatabase(dbName);
 		assertThat(resultCreate, is(true));
-		final Boolean resultDelete = arangoDB.db(BaseTest.TEST_DB).drop();
+		final Boolean resultDelete = arangoDB.db(dbName).drop();
 		assertThat(resultDelete, is(true));
 	}
 
 	@Test
 	public void getDatabases() {
-		try {
-			Collection<String> dbs = arangoDB.getDatabases();
-			assertThat(dbs, is(notNullValue()));
-			assertThat(dbs.size(), is(greaterThan(0)));
-			final int dbCount = dbs.size();
-			assertThat(dbs.iterator().next(), is("_system"));
-			arangoDB.createDatabase(BaseTest.TEST_DB);
-			dbs = arangoDB.getDatabases();
-			assertThat(dbs.size(), is(greaterThan(dbCount)));
-			assertThat(dbs, hasItem("_system"));
-			assertThat(dbs, hasItem(BaseTest.TEST_DB));
-		} finally {
-			arangoDB.db(BaseTest.TEST_DB).drop();
-		}
+		final String dbName = "testDB-" + UUID.randomUUID().toString();
+		Collection<String> dbs = arangoDB.getDatabases();
+		assertThat(dbs, is(notNullValue()));
+		assertThat(dbs.size(), is(greaterThan(0)));
+		final int dbCount = dbs.size();
+		assertThat(dbs.contains("_system"), is(true));
+		arangoDB.createDatabase(dbName);
+		dbs = arangoDB.getDatabases();
+		assertThat(dbs.size(), is(greaterThan(dbCount)));
+		assertThat(dbs, hasItem("_system"));
+		assertThat(dbs, hasItem(dbName));
+		arangoDB.db(dbName).drop();
 	}
 
 	@Test
@@ -204,7 +185,7 @@ public class ArangoDBTest {
 			assertThat(users, is(notNullValue()));
 			assertThat(users.size(), is(initialUsers.size() + 1));
 
-			final List<Matcher<? super String>> matchers = new ArrayList<Matcher<? super String>>(users.size());
+			final List<Matcher<? super String>> matchers = new ArrayList<>(users.size());
 			// Add initial users, including root:
 			for (final UserEntity userEntity : initialUsers) {
 				matchers.add(is(userEntity.getUser()));
@@ -233,7 +214,7 @@ public class ArangoDBTest {
 	@Test
 	public void updateUser() {
 		try {
-			final Map<String, Object> extra = new HashMap<String, Object>();
+			final Map<String, Object> extra = new HashMap<>();
 			extra.put("hund", false);
 			arangoDB.createUser(USER, PW, new UserCreateOptions().extra(extra));
 			extra.put("hund", true);
@@ -255,7 +236,7 @@ public class ArangoDBTest {
 	@Test
 	public void replaceUser() {
 		try {
-			final Map<String, Object> extra = new HashMap<String, Object>();
+			final Map<String, Object> extra = new HashMap<>();
 			extra.put("hund", false);
 			arangoDB.createUser(USER, PW, new UserCreateOptions().extra(extra));
 			extra.remove("hund");
@@ -301,7 +282,7 @@ public class ArangoDBTest {
 			arangoDB.getVersion();
 			fail();
 		} catch (final ArangoDBException e) {
-
+			assertThat(e.getResponseCode(), is(401));
 		}
 	}
 
@@ -312,7 +293,7 @@ public class ArangoDBTest {
 			arangoDB.getVersion();
 			fail();
 		} catch (final ArangoDBException e) {
-
+			assertThat(e.getResponseCode(), is(401));
 		}
 	}
 
@@ -434,7 +415,6 @@ public class ArangoDBTest {
 		} catch (final ArangoDBException e) {
 			assertThat(e.getResponseCode(), is(404));
 			assertThat(e.getErrorNum(), is(1228));
-			assertThat(e.getErrorMessage(), is("database not found"));
 		}
 	}
 
@@ -457,24 +437,29 @@ public class ArangoDBTest {
 
 	@Test
 	public void accessMultipleDatabases() {
-		try {
-			arangoDB.createDatabase("db1");
-			arangoDB.createDatabase("db2");
+		String db1 = "multipledb1";
+		String db2 = "multipledb2";
 
-			final ArangoDBVersion version1 = arangoDB.db("db1").getVersion();
+		try {
+			arangoDB.createDatabase(db1);
+			arangoDB.createDatabase(db2);
+
+			final ArangoDBVersion version1 = arangoDB.db(db1).getVersion();
 			assertThat(version1, is(notNullValue()));
-			final ArangoDBVersion version2 = arangoDB.db("db2").getVersion();
+			final ArangoDBVersion version2 = arangoDB.db(db2).getVersion();
 			assertThat(version2, is(notNullValue()));
 		} finally {
-			arangoDB.db("db1").drop();
-			arangoDB.db("db2").drop();
+			arangoDB.db(db1).drop();
+			arangoDB.db(db2).drop();
 		}
 	}
 
+  /*
 	@Test
 	public void acquireHostList() {
 		final ArangoDB arango = new ArangoDB.Builder().acquireHostList(true).build();
 		final ArangoDBVersion version = arango.getVersion();
 		assertThat(version, is(notNullValue()));
 	}
+  */
 }

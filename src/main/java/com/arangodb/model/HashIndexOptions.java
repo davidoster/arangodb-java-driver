@@ -27,7 +27,7 @@ import com.arangodb.entity.IndexType;
  *
  * @see <a href="https://docs.arangodb.com/current/HTTP/Indexes/Hash.html#create-hash-index">API Documentation</a>
  */
-public class HashIndexOptions {
+public class HashIndexOptions extends IndexOptions<HashIndexOptions> {
 
 	private Iterable<String> fields;
 	private final IndexType type = IndexType.hash;
@@ -38,6 +38,11 @@ public class HashIndexOptions {
 	public HashIndexOptions() {
 		super();
 	}
+
+    @Override
+    protected HashIndexOptions getThis() {
+        return this;
+    }
 
 	protected Iterable<String> getFields() {
 		return fields;
@@ -98,5 +103,4 @@ public class HashIndexOptions {
 		this.deduplicate = deduplicate;
 		return this;
 	}
-
 }

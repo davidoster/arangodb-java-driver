@@ -20,18 +20,18 @@
 
 package com.arangodb.internal.util;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
 
 /**
  * @author Mark Vollmary
  *
  */
 public final class IOUtils {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(IOUtils.class);
 
 	private IOUtils() {
 	}
@@ -73,4 +73,5 @@ public final class IOUtils {
 		buffer.flush();
 		return buffer.toByteArray();
 	}
+
 }

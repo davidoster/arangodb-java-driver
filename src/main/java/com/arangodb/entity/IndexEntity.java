@@ -29,6 +29,7 @@ import java.util.Collection;
 public class IndexEntity implements Entity {
 
 	private String id;
+	private String name;
 	private IndexType type;
 	private Collection<String> fields;
 	private Double selectivityEstimate;
@@ -39,6 +40,8 @@ public class IndexEntity implements Entity {
 	private Boolean geoJson;
 	private Boolean constraint;
 	private Boolean deduplicate;
+	private Integer expireAfter;
+	private Boolean inBackground;
 
 	public IndexEntity() {
 		super();
@@ -46,6 +49,14 @@ public class IndexEntity implements Entity {
 
 	public String getId() {
 		return id;
+	}
+
+	public Boolean getInBackground() {
+		return inBackground;
+	}
+
+	public String getName() {
+		return name;
 	}
 
 	public IndexType getType() {
@@ -78,6 +89,10 @@ public class IndexEntity implements Entity {
 
 	public Boolean getGeoJson() {
 		return geoJson;
+	}
+
+	public Integer getExpireAfter() {
+		return expireAfter;
 	}
 
 	public Boolean getConstraint() {

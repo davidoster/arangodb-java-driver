@@ -20,8 +20,7 @@
 
 package com.arangodb.internal.net;
 
-import java.io.IOException;
-import java.util.List;
+import com.arangodb.ArangoDBException;
 
 /**
  * @author Mark Vollmary
@@ -30,8 +29,10 @@ import java.util.List;
 public class RoundRobinHostHandler implements HostHandler {
 
 	private final HostResolver resolver;
+
 	private int current;
 	private int fails;
+	private Host currentHost;
 
 	public RoundRobinHostHandler(final HostResolver resolver) {
 		super();
@@ -43,18 +44,22 @@ public class RoundRobinHostHandler implements HostHandler {
 
 	@Override
 	public Host get(final HostHandle hostHandle, AccessType accessType) {
-		final List<Host> hosts = resolver.resolve(false, false);
-		final int size = hosts.size();
+
+		final HostSet hosts = resolver.resolve(false, false);
+		final int size = hosts.getHostsList().size();
+
 		if (fails > size) {
-			return null;
+			reset();
+			throw new ArangoDBException("Cannot contact any host!");
 		}
+
 		final int index = (current++) % size;
-		Host host = hosts.get(index);
+		Host host = hosts.getHostsList().get(index);
 		if (hostHandle != null) {
 			final HostDescription hostDescription = hostHandle.getHost();
 			if (hostDescription != null) {
 				for (int i = index; i < index + size; i++) {
-					host = hosts.get(i % size);
+					host = hosts.getHostsList().get(i % size);
 					if (hostDescription.equals(host.getDescription())) {
 						break;
 					}
@@ -63,6 +68,7 @@ public class RoundRobinHostHandler implements HostHandler {
 				hostHandle.setHost(host.getDescription());
 			}
 		}
+		currentHost = host;
 		return host;
 	}
 
@@ -86,17 +92,14 @@ public class RoundRobinHostHandler implements HostHandler {
 	}
 
 	@Override
-	public void close() throws IOException {
-		final List<Host> hosts = resolver.resolve(false, false);
-		for (final Host host : hosts) {
-			host.close();
-		}
+	public void close() {
+		final HostSet hosts = resolver.resolve(false, false);
+		hosts.close();
 	}
 
 	@Override
 	public void closeCurrentOnError() {
-		final List<Host> hosts = resolver.resolve(false, false);
-		hosts.get(current).closeOnError();
+		currentHost.closeOnError();
 	}
 
 }

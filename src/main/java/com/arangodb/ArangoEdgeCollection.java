@@ -22,11 +22,7 @@ package com.arangodb;
 
 import com.arangodb.entity.EdgeEntity;
 import com.arangodb.entity.EdgeUpdateEntity;
-import com.arangodb.model.DocumentReadOptions;
-import com.arangodb.model.EdgeCreateOptions;
-import com.arangodb.model.EdgeDeleteOptions;
-import com.arangodb.model.EdgeReplaceOptions;
-import com.arangodb.model.EdgeUpdateOptions;
+import com.arangodb.model.*;
 
 /**
  * Interface for operations on ArangoDB edge collection level.
@@ -34,6 +30,7 @@ import com.arangodb.model.EdgeUpdateOptions;
  * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Edges.html">API Documentation</a>
  * @author Mark Vollmary
  */
+@SuppressWarnings("UnusedReturnValue")
 public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 
 	/**
@@ -100,7 +97,7 @@ public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 	 * @return the edge identified by the key
 	 * @throws ArangoDBException
 	 */
-	<T> T getEdge(String key, Class<T> type, DocumentReadOptions options) throws ArangoDBException;
+	<T> T getEdge(String key, Class<T> type, GraphDocumentReadOptions options) throws ArangoDBException;
 
 	/**
 	 * Replaces the edge with key with the one in the body, provided there is such a edge and no precondition is
@@ -109,7 +106,7 @@ public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Edges.html#replace-an-edge">API Documentation</a>
 	 * @param key
 	 *            The key of the edge
-	 * @param type
+	 * @param <T>
 	 *            The type of the edge-document (POJO class, VPackSlice or String for JSON)
 	 * @return information about the edge
 	 * @throws ArangoDBException
@@ -123,7 +120,7 @@ public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Edges.html#replace-an-edge">API Documentation</a>
 	 * @param key
 	 *            The key of the edge
-	 * @param type
+	 * @param <T>
 	 *            The type of the edge-document (POJO class, VPackSlice or String for JSON)
 	 * @param options
 	 *            Additional options, can be null
@@ -140,7 +137,7 @@ public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Edges.html#modify-an-edge">API Documentation</a>
 	 * @param key
 	 *            The key of the edge
-	 * @param type
+	 * @param <T>
 	 *            The type of the edge-document (POJO class, VPackSlice or String for JSON)
 	 * @return information about the edge
 	 * @throws ArangoDBException
@@ -155,7 +152,7 @@ public interface ArangoEdgeCollection extends ArangoSerializationAccessor {
 	 * @see <a href="https://docs.arangodb.com/current/HTTP/Gharial/Edges.html#modify-an-edge">API Documentation</a>
 	 * @param key
 	 *            The key of the edge
-	 * @param type
+	 * @param <T>
 	 *            The type of the edge-document (POJO class, VPackSlice or String for JSON)
 	 * @param options
 	 *            Additional options, can be null

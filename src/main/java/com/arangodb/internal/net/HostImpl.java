@@ -20,9 +20,9 @@
 
 package com.arangodb.internal.net;
 
-import java.io.IOException;
-
 import com.arangodb.ArangoDBException;
+
+import java.io.IOException;
 
 /**
  * @author Mark Vollmary
@@ -32,6 +32,7 @@ public class HostImpl implements Host {
 
 	private final ConnectionPool connectionPool;
 	private final HostDescription description;
+	private boolean markforDeletion = false;
 
 	public HostImpl(final ConnectionPool connectionPool, final HostDescription description) {
 		super();
@@ -63,4 +64,42 @@ public class HostImpl implements Host {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return "HostImpl [connectionPool=" + connectionPool + ", description=" + description + ", markforDeletion="
+				+ markforDeletion + "]";
+	}
+
+	public boolean isMarkforDeletion() {
+		return markforDeletion;
+	}
+
+	public void setMarkforDeletion(boolean markforDeletion) {
+		this.markforDeletion = markforDeletion;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((description == null) ? 0 : description.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		HostImpl other = (HostImpl) obj;
+		if (description == null) {
+			return other.description == null;
+		} else return description.equals(other.description);
+	}
+	
+	
+	
 }

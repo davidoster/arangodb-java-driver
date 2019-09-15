@@ -20,31 +20,14 @@
 
 package com.arangodb;
 
-import java.io.InputStream;
-import java.lang.annotation.Annotation;
-import java.util.Collection;
-import java.util.Properties;
-
-import javax.net.ssl.SSLContext;
-
-import com.arangodb.entity.ArangoDBVersion;
-import com.arangodb.entity.LoadBalancingStrategy;
-import com.arangodb.entity.LogEntity;
-import com.arangodb.entity.LogLevelEntity;
-import com.arangodb.entity.Permissions;
-import com.arangodb.entity.ServerRole;
-import com.arangodb.entity.UserEntity;
+import com.arangodb.entity.*;
 import com.arangodb.internal.ArangoContext;
 import com.arangodb.internal.ArangoDBImpl;
 import com.arangodb.internal.ArangoDefaults;
 import com.arangodb.internal.InternalArangoDBBuilder;
 import com.arangodb.internal.http.HttpCommunication;
 import com.arangodb.internal.http.HttpConnectionFactory;
-import com.arangodb.internal.net.ConnectionFactory;
-import com.arangodb.internal.net.Host;
-import com.arangodb.internal.net.HostHandle;
-import com.arangodb.internal.net.HostHandler;
-import com.arangodb.internal.net.HostResolver;
+import com.arangodb.internal.net.*;
 import com.arangodb.internal.util.ArangoDeserializerImpl;
 import com.arangodb.internal.util.ArangoSerializationFactory;
 import com.arangodb.internal.util.ArangoSerializerImpl;
@@ -58,20 +41,15 @@ import com.arangodb.util.ArangoCursorInitializer;
 import com.arangodb.util.ArangoDeserializer;
 import com.arangodb.util.ArangoSerialization;
 import com.arangodb.util.ArangoSerializer;
-import com.arangodb.velocypack.VPack;
-import com.arangodb.velocypack.VPackAnnotationFieldFilter;
-import com.arangodb.velocypack.VPackAnnotationFieldNaming;
-import com.arangodb.velocypack.VPackDeserializer;
-import com.arangodb.velocypack.VPackInstanceCreator;
-import com.arangodb.velocypack.VPackJsonDeserializer;
-import com.arangodb.velocypack.VPackJsonSerializer;
-import com.arangodb.velocypack.VPackModule;
-import com.arangodb.velocypack.VPackParser;
-import com.arangodb.velocypack.VPackParserModule;
-import com.arangodb.velocypack.VPackSerializer;
-import com.arangodb.velocypack.ValueType;
+import com.arangodb.velocypack.*;
 import com.arangodb.velocystream.Request;
 import com.arangodb.velocystream.Response;
+
+import javax.net.ssl.SSLContext;
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.util.Collection;
+import java.util.Properties;
 
 /**
  * Central access point for applications to communicate with an ArangoDB server.
@@ -86,7 +64,9 @@ import com.arangodb.velocystream.Response;
  * </pre>
  *
  * @author Mark Vollmary
+ * @author Michele Rastelli
  */
+@SuppressWarnings("UnusedReturnValue")
 public interface ArangoDB extends ArangoSerializationAccessor {
 
 	/**
@@ -94,9 +74,9 @@ public interface ArangoDB extends ArangoSerializationAccessor {
 	 *
 	 * @author Mark Vollmary
 	 */
-	public static class Builder extends InternalArangoDBBuilder {
+	class Builder extends InternalArangoDBBuilder {
 
-		private static String PROPERTY_KEY_PROTOCOL = "arangodb.protocol";
+		private static final String PROPERTY_KEY_PROTOCOL = "arangodb.protocol";
 
 		protected Protocol protocol;
 
@@ -261,6 +241,18 @@ public interface ArangoDB extends ArangoSerializationAccessor {
 		 */
 		public Builder acquireHostList(final Boolean acquireHostList) {
 			setAcquireHostList(acquireHostList);
+			return this;
+		}
+		
+		/**
+		 * Setting the Interval for acquireHostList
+		 *
+		 * @param acquireHostListInterval Interval in Seconds
+		 * 
+		 * @return {@link ArangoDB.Builder}
+		 */
+		public Builder acquireHostListInterval(final Integer acquireHostListInterval) {
+			setAcquireHostListInterval(acquireHostListInterval);
 			return this;
 		}
 
@@ -603,18 +595,20 @@ public interface ArangoDB extends ArangoSerializationAccessor {
 			final ArangoSerialization custom = customSerializer != null ? customSerializer : internal;
 			final ArangoSerializationFactory util = new ArangoSerializationFactory(internal, custom);
 
-			final int max = maxConnections != null ? Math.max(1, maxConnections)
-					: protocol == Protocol.VST ? ArangoDefaults.MAX_CONNECTIONS_VST_DEFAULT
-							: ArangoDefaults.MAX_CONNECTIONS_HTTP_DEFAULT;
+			int protocolMaxConnections = protocol == Protocol.VST ?
+					ArangoDefaults.MAX_CONNECTIONS_VST_DEFAULT :
+					ArangoDefaults.MAX_CONNECTIONS_HTTP_DEFAULT;
+			final int max = maxConnections != null ? Math.max(1, maxConnections) : protocolMaxConnections;
 
 			final ConnectionFactory connectionFactory = (protocol == null || Protocol.VST == protocol)
 					? new VstConnectionFactorySync(host, timeout, connectionTtl, useSsl, sslContext)
 					: new HttpConnectionFactory(timeout, user, password, useSsl, sslContext, custom, protocol,
-							connectionTtl);
+							connectionTtl, httpCookieSpec);
 
 			final Collection<Host> hostList = createHostList(max, connectionFactory);
 			final HostResolver hostResolver = createHostResolver(hostList, max, connectionFactory);
 			final HostHandler hostHandler = createHostHandler(hostResolver);
+			
 			return new ArangoDBImpl(
 					new VstCommunicationSync.Builder(hostHandler).timeout(timeout).user(user).password(password)
 							.useSsl(useSsl).sslContext(sslContext).chunksize(chunksize).maxConnections(maxConnections)
@@ -688,7 +682,7 @@ public interface ArangoDB extends ArangoSerializationAccessor {
 	 *      Documentation</a>
 	 * @param user
 	 *            The name of the user for which you want to query the databases
-	 * @return
+	 * @return list of database names which are available for the specified user
 	 * @throws ArangoDBException
 	 */
 	Collection<String> getAccessibleDatabasesFor(String user) throws ArangoDBException;
@@ -704,13 +698,23 @@ public interface ArangoDB extends ArangoSerializationAccessor {
 	ArangoDBVersion getVersion() throws ArangoDBException;
 
 	/**
+	 * Returns the server storage engine.
+	 *
+	 * @see <a href="https://docs.arangodb.com/current/HTTP/MiscellaneousFunctions/index.html#return-server-database-engine-type">API
+	 *      Documentation</a>
+	 * @return the storage engine name
+	 * @throws ArangoDBException
+	 */
+	ArangoDBEngine getEngine() throws ArangoDBException;
+
+	/**
 	 * Returns the server role.
 	 *
 	 * @return the server role
 	 * @throws ArangoDBException
 	 */
 	ServerRole getRole() throws ArangoDBException;
-
+	
 	/**
 	 * Create a new user. This user will not have access to any database. You need permission to the _system database in
 	 * order to execute this call.

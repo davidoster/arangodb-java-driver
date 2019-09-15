@@ -20,9 +20,6 @@
 
 package com.arangodb.internal;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import com.arangodb.entity.DocumentField;
 import com.arangodb.entity.EdgeEntity;
 import com.arangodb.entity.EdgeUpdateEntity;
@@ -30,17 +27,14 @@ import com.arangodb.internal.ArangoExecutor.ResponseDeserializer;
 import com.arangodb.internal.util.ArangoSerializationFactory.Serializer;
 import com.arangodb.internal.util.DocumentUtil;
 import com.arangodb.internal.util.RequestUtils;
-import com.arangodb.model.DocumentReadOptions;
-import com.arangodb.model.EdgeCreateOptions;
-import com.arangodb.model.EdgeDeleteOptions;
-import com.arangodb.model.EdgeReplaceOptions;
-import com.arangodb.model.EdgeUpdateOptions;
+import com.arangodb.model.*;
 import com.arangodb.util.ArangoSerializer;
 import com.arangodb.velocypack.VPackSlice;
-import com.arangodb.velocypack.exception.VPackException;
 import com.arangodb.velocystream.Request;
 import com.arangodb.velocystream.RequestType;
-import com.arangodb.velocystream.Response;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author Mark Vollmary
@@ -79,25 +73,22 @@ public abstract class InternalArangoEdgeCollection<A extends InternalArangoDB<E>
 	}
 
 	protected <T> ResponseDeserializer<EdgeEntity> insertEdgeResponseDeserializer(final T value) {
-		return new ResponseDeserializer<EdgeEntity>() {
-			@Override
-			public EdgeEntity deserialize(final Response response) throws VPackException {
-				final VPackSlice body = response.getBody().get(EDGE);
-				final EdgeEntity doc = util().deserialize(body, EdgeEntity.class);
-				final Map<DocumentField.Type, String> values = new HashMap<DocumentField.Type, String>();
-				values.put(DocumentField.Type.ID, doc.getId());
-				values.put(DocumentField.Type.KEY, doc.getKey());
-				values.put(DocumentField.Type.REV, doc.getRev());
-				executor.documentCache().setValues(value, values);
-				return doc;
-			}
+		return response -> {
+			final VPackSlice body = response.getBody().get(EDGE);
+			final EdgeEntity doc = util().deserialize(body, EdgeEntity.class);
+			final Map<DocumentField.Type, String> values = new HashMap<>();
+			values.put(DocumentField.Type.ID, doc.getId());
+			values.put(DocumentField.Type.KEY, doc.getKey());
+			values.put(DocumentField.Type.REV, doc.getRev());
+			executor.documentCache().setValues(value, values);
+			return doc;
 		};
 	}
 
-	protected Request getEdgeRequest(final String key, final DocumentReadOptions options) {
+	protected Request getEdgeRequest(final String key, final GraphDocumentReadOptions options) {
 		final Request request = request(graph.db().name(), RequestType.GET, PATH_API_GHARIAL, graph.name(), EDGE,
 			DocumentUtil.createDocumentHandle(name, key));
-		final DocumentReadOptions params = (options != null ? options : new DocumentReadOptions());
+		final GraphDocumentReadOptions params = (options != null ? options : new GraphDocumentReadOptions());
 		request.putHeaderParam(ArangoRequestParam.IF_NONE_MATCH, params.getIfNoneMatch());
 		request.putHeaderParam(ArangoRequestParam.IF_MATCH, params.getIfMatch());
 		if (params.getAllowDirtyRead() == Boolean.TRUE) {
@@ -107,12 +98,7 @@ public abstract class InternalArangoEdgeCollection<A extends InternalArangoDB<E>
 	}
 
 	protected <T> ResponseDeserializer<T> getEdgeResponseDeserializer(final Class<T> type) {
-		return new ResponseDeserializer<T>() {
-			@Override
-			public T deserialize(final Response response) throws VPackException {
-				return util(Serializer.CUSTOM).deserialize(response.getBody().get(EDGE), type);
-			}
-		};
+		return response -> util(Serializer.CUSTOM).deserialize(response.getBody().get(EDGE), type);
 	}
 
 	protected <T> Request replaceEdgeRequest(final String key, final T value, final EdgeReplaceOptions options) {
@@ -126,16 +112,13 @@ public abstract class InternalArangoEdgeCollection<A extends InternalArangoDB<E>
 	}
 
 	protected <T> ResponseDeserializer<EdgeUpdateEntity> replaceEdgeResponseDeserializer(final T value) {
-		return new ResponseDeserializer<EdgeUpdateEntity>() {
-			@Override
-			public EdgeUpdateEntity deserialize(final Response response) throws VPackException {
-				final VPackSlice body = response.getBody().get(EDGE);
-				final EdgeUpdateEntity doc = util().deserialize(body, EdgeUpdateEntity.class);
-				final Map<DocumentField.Type, String> values = new HashMap<DocumentField.Type, String>();
-				values.put(DocumentField.Type.REV, doc.getRev());
-				executor.documentCache().setValues(value, values);
-				return doc;
-			}
+		return response -> {
+			final VPackSlice body = response.getBody().get(EDGE);
+			final EdgeUpdateEntity doc = util().deserialize(body, EdgeUpdateEntity.class);
+			final Map<DocumentField.Type, String> values = new HashMap<>();
+			values.put(DocumentField.Type.REV, doc.getRev());
+			executor.documentCache().setValues(value, values);
+			return doc;
 		};
 	}
 
@@ -153,16 +136,13 @@ public abstract class InternalArangoEdgeCollection<A extends InternalArangoDB<E>
 	}
 
 	protected <T> ResponseDeserializer<EdgeUpdateEntity> updateEdgeResponseDeserializer(final T value) {
-		return new ResponseDeserializer<EdgeUpdateEntity>() {
-			@Override
-			public EdgeUpdateEntity deserialize(final Response response) throws VPackException {
-				final VPackSlice body = response.getBody().get(EDGE);
-				final EdgeUpdateEntity doc = util().deserialize(body, EdgeUpdateEntity.class);
-				final Map<DocumentField.Type, String> values = new HashMap<DocumentField.Type, String>();
-				values.put(DocumentField.Type.REV, doc.getRev());
-				executor.documentCache().setValues(value, values);
-				return doc;
-			}
+		return response -> {
+			final VPackSlice body = response.getBody().get(EDGE);
+			final EdgeUpdateEntity doc = util().deserialize(body, EdgeUpdateEntity.class);
+			final Map<DocumentField.Type, String> values = new HashMap<>();
+			values.put(DocumentField.Type.REV, doc.getRev());
+			executor.documentCache().setValues(value, values);
+			return doc;
 		};
 	}
 

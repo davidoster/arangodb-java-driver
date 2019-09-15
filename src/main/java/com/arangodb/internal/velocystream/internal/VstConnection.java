@@ -20,6 +20,18 @@
 
 package com.arangodb.internal.velocystream.internal;
 
+import com.arangodb.ArangoDBException;
+import com.arangodb.internal.ArangoDefaults;
+import com.arangodb.internal.net.Connection;
+import com.arangodb.internal.net.HostDescription;
+import com.arangodb.velocypack.VPackSlice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,30 +42,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.arangodb.ArangoDBException;
-import com.arangodb.internal.ArangoDefaults;
-import com.arangodb.internal.net.Connection;
-import com.arangodb.internal.net.HostDescription;
-import com.arangodb.velocypack.VPackSlice;
 
 /**
  * @author Mark Vollmary
  *
  */
 public abstract class VstConnection implements Connection {
-
 	private static final Logger LOGGER = LoggerFactory.getLogger(VstConnection.class);
 	private static final byte[] PROTOCOL_HEADER = "VST/1.0\r\n\r\n".getBytes();
 
@@ -71,6 +69,10 @@ public abstract class VstConnection implements Connection {
 
 	private final HostDescription host;
 
+	private final HashMap<Long, Long> sendTimestamps = new HashMap<>();
+
+	private final String connectionName;
+
 	protected VstConnection(final HostDescription host, final Integer timeout, final Long ttl, final Boolean useSsl,
 		final SSLContext sslContext, final MessageStore messageStore) {
 		super();
@@ -80,6 +82,9 @@ public abstract class VstConnection implements Connection {
 		this.useSsl = useSsl;
 		this.sslContext = sslContext;
 		this.messageStore = messageStore;
+		
+		connectionName = "conenction_" + System.currentTimeMillis() + "_" + Math.random();
+		LOGGER.debug("Connection " + connectionName + " created");
 	}
 
 	public boolean isOpen() {
@@ -102,8 +107,7 @@ public abstract class VstConnection implements Connection {
 		} else {
 			socket = SocketFactory.getDefault().createSocket();
 		}
-		socket.connect(new InetSocketAddress(host.getHost(), host.getPort()),
-			timeout != null ? timeout : ArangoDefaults.DEFAULT_TIMEOUT);
+		socket.connect(new InetSocketAddress(host.getHost(), host.getPort()), timeout != null ? timeout : ArangoDefaults.DEFAULT_TIMEOUT);
 		socket.setKeepAlive(true);
 		socket.setTcpNoDelay(true);
 		if (LOGGER.isDebugEnabled()) {
@@ -120,40 +124,43 @@ public abstract class VstConnection implements Connection {
 			((SSLSocket) socket).startHandshake();
 		}
 		sendProtocolHeader();
+		
 		executor = Executors.newSingleThreadExecutor();
-		executor.submit(new Callable<Void>() {
-			@Override
-			public Void call() throws Exception {
-				final long openTime = new Date().getTime();
-				final Long ttlTime = ttl != null ? openTime + ttl : null;
-				final ChunkStore chunkStore = new ChunkStore(messageStore);
-				while (true) {
-					if (ttlTime != null && new Date().getTime() > ttlTime && messageStore.isEmpty()) {
-						close();
-						break;
-					}
-					if (!isOpen()) {
-						messageStore.clear(new IOException("The socket is closed."));
-						close();
-						break;
-					}
-					try {
-						final Chunk chunk = readChunk();
-						final ByteBuffer chunkBuffer = chunkStore.storeChunk(chunk);
-						if (chunkBuffer != null) {
-							final byte[] buf = new byte[chunk.getContentLength()];
-							readBytesIntoBuffer(buf, 0, buf.length);
-							chunkBuffer.put(buf);
-							chunkStore.checkCompleteness(chunk.getMessageId());
-						}
-					} catch (final Exception e) {
-						messageStore.clear(e);
-						close();
-						break;
-					}
+		executor.submit((Callable<Void>) () -> {
+			LOGGER.debug("Start Callable for " + connectionName);
+
+			final long openTime = new Date().getTime();
+			final Long ttlTime = ttl != null ? openTime + ttl : null;
+			final ChunkStore chunkStore = new ChunkStore(messageStore);
+			while (true) {
+				if (ttlTime != null && new Date().getTime() > ttlTime && messageStore.isEmpty()) {
+					close();
+					break;
 				}
-				return null;
+				if (!isOpen()) {
+					messageStore.clear(new IOException("The socket is closed."));
+					close();
+					break;
+				}
+				try {
+					final Chunk chunk = readChunk();
+					final ByteBuffer chunkBuffer = chunkStore.storeChunk(chunk);
+					if (chunkBuffer != null) {
+						final byte[] buf = new byte[chunk.getContentLength()];
+						readBytesIntoBuffer(buf, 0, buf.length);
+						chunkBuffer.put(buf);
+						chunkStore.checkCompleteness(chunk.getMessageId());
+					}
+				} catch (final Exception e) {
+					messageStore.clear(e);
+					close();
+					break;
+				}
 			}
+
+			LOGGER.debug("Stop Callable for " + connectionName);
+
+			return null;
 		});
 	}
 
@@ -190,6 +197,7 @@ public abstract class VstConnection implements Connection {
 				if (LOGGER.isDebugEnabled()) {
 					LOGGER.debug(String.format("Send chunk %s:%s from message %s", chunk.getChunk(),
 						chunk.isFirstChunk() ? 1 : 0, chunk.getMessageId()));
+					sendTimestamps.put(chunk.getMessageId(), System.currentTimeMillis());
 				}
 				writeChunkHead(chunk);
 				final int contentOffset = chunk.getContentOffset();
@@ -207,6 +215,7 @@ public abstract class VstConnection implements Connection {
 				}
 				outputStream.flush();
 			} catch (final IOException e) {
+				LOGGER.error("Error on Connection " + connectionName);
 				throw new ArangoDBException(e);
 			}
 		}
@@ -242,10 +251,13 @@ public abstract class VstConnection implements Connection {
 			contentLength = length - ArangoDefaults.CHUNK_MIN_HEADER_SIZE;
 		}
 		final Chunk chunk = new Chunk(messageId, chunkX, messageLength, 0, contentLength);
+		
 		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug(String.format("Received chunk %s:%s from message %s", chunk.getChunk(),
-				chunk.isFirstChunk() ? 1 : 0, chunk.getMessageId()));
+			
+			LOGGER.debug(String.format("Received chunk %s:%s from message %s", chunk.getChunk(), chunk.isFirstChunk() ? 1 : 0, chunk.getMessageId()));
+			LOGGER.debug("Responsetime for Message " + chunk.getMessageId() + " is " + (sendTimestamps.get(chunk.getMessageId())-System.currentTimeMillis()));
 		}
+		
 		return chunk;
 	}
 
@@ -264,6 +276,10 @@ public abstract class VstConnection implements Connection {
 				readed += read;
 			}
 		}
+	}
+	
+	public String getConnectionName() {
+		return this.connectionName;
 	}
 
 }
